@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>LunaroChat Overlay</title>
+<meta name="description" content="LunaroChat – Ultra-stabiles Twitch-Overlay ohne Memory-Leaks.">
+<style>
+  :root{
+    --bg: rgba(0,0,0,0);
+    --text:#fff;
+    --user:#9ad;
+    --time:#999;
+    --msg-bg: rgba(0,0,0,0.35);
+    --font: "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  body{margin:0;background:transparent;font-family:var(--font);-webkit-font-smoothing:antialiased}
+  #chat{padding:6px; display:flex; flex-direction:column-reverse; gap:6px; max-height:100vh; overflow:hidden}
+  .line{display:flex; gap:8px; align-items:flex-start; max-width:100%}
+  .meta{display:flex; gap:8px; align-items:center; white-space:nowrap}
+  .user{font-weight:700;color:var(--user); font-size:1em}
+  .time{color:var(--time); font-size:0.85em}
+  .text{background:var(--msg-bg); padding:6px 8px; border-radius:6px; display:inline-block; line-height:1.25; color:var(--text); word-break:break-word; max-width:86vw}
+  img.emote{height:1.2em; vertical-align:middle; display:inline-block}
+
+  :root[data-theme="light"]{
+    --text:#111;
+    --user:#035;
+    --time:#666;
+    --msg-bg: rgba(255,255,255,0.9);
+  }
+</style>
+</head>
+<body>
+<div id="chat" aria-live="polite" role="log"></div>
+
+<script>
+// Branding
+console.log("%cLunaroChat Overlay loaded", "color:#67baff; font-size:16px;");
+
+// Params
+const params = (new URL(location.href)).searchParams;
+const CHANNEL = (params.get('channel') || 'logo').toLowerCase();
+const FONT_SIZE = parseInt(params.get('fontSize')||14,10);
+const THEME = (params.get('theme')||'dark').toLowerCase();
+const ENABLE_BTTV = params.get('bttv')!=='0' && params.get('bttv')!=='false';
+const ENABLE_FFZ = params.get('ffz')!=='0' && params.get('ffz')!=='false';
+const ENABLE_7TV = params.get('sev')!=='0' && params.get('sev')!=='false';
+const MAX_MESSAGES = Math.max(50, Math.min(1000, parseInt(params.get('max')||200,10)));
+const POLL_INTERVAL = 200;
+const RECONNECT_BASE = 2000;
+const DEBUG = false;
+
+document.documentElement.setAttribute('data-theme', THEME === 'light' ? 'light':'dark');
+document.getElementById('chat').style.fontSize = FONT_SIZE + 'px';
+const chatDiv = document.getElementById('chat');
+
+// Emote storage
+const EmoteStore = { bttv:{map:{}}, ffz:{map:{}}, sev:{map:{}} };
+function log(){ if(DEBUG) console.log.apply(console, arguments); }
+
+async function safeFetch(url, opts={}, timeout=8000){
+  const controller = new AbortController();
+  const id = setTimeout(()=>controller.abort(), timeout);
+  try{
+    const r = await fetch(url, {...opts, signal: controller.signal});
+    clearTimeout(id);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return await r.json();
+  }catch{
+    clearTimeout(id);
+    return null;
+  }
+}
+
+async function loadEmotes(provider, channel){
+  const url = '/api/emotes?provider=' + encodeURIComponent(provider) +
+              '&channel=' + encodeURIComponent(channel);
+  const data = await safeFetch(url, {}, 12000);
+  if(!data) return;
+  for(const k in data.map) EmoteStore[provider].map[k] = data.map[k];
+  log('LunaroChat ['+provider+'] loaded', Object.keys(data.map).length);
+}
+
+// IRC client
+class LunaroIRC {
+  constructor(channel){
+    this.channel = channel.startsWith('#')?channel:'#'+channel;
+    this.ws = null;
+    this._closing = false;
+    this.backoff = 1;
+    this.listeners = {message:[],connected:[],disconnected:[]};
+  }
+  on(evt,fn){ this.listeners[evt].push(fn); }
+  emit(evt,...args){ this.listeners[evt].forEach(f=>{ try{f(...args);}catch{} }); }
+
+  connect(){
+    if(this.ws) return;
+    try{
+      this.ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+      this.ws.addEventListener('open',()=>{
+        this.ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+        this.ws.send('NICK justinfan' + (Math.random()*99999|0));
+        this.ws.send('JOIN ' + this.channel);
+        this.emit('connected');
+      });
+      this.ws.addEventListener('message',(ev)=>{
+        const raw = ev.data;
+        if(raw.startsWith('PING')) return this.ws.send('PONG :tmi.twitch.tv');
+        const parts = raw.split(' ');
+        if(parts.indexOf('PRIVMSG')>-1){
+          const tagsPart = raw.startsWith('@') ? raw.split(' ')[0] : '';
+          const tags = {};
+          if(tagsPart){
+            for(const t of tagsPart.substring(1).split(';')){
+              const [k,v] = t.split('=');
+              tags[k]=v;
+            }
+            const nick = raw.split('!')[0].replace(/^@/,'').replace(':','');
+            const msgIndex = raw.indexOf(' PRIVMSG ');
+            const text = raw.substring(raw.indexOf(' :', msgIndex)+2);
+            const user = tags['display-name']||nick;
+            this.emit('message',{user,text,color:tags.color||'#ffffff'});
+          }
+        }
+      });
+      this.ws.addEventListener('close',()=>{
+        this.ws=null;
+        this.emit('disconnected');
+        if(!this._closing){
+          const delay = Math.min(60000, RECONNECT_BASE*this.backoff);
+          this.backoff*=1.8;
+          setTimeout(()=>this.connect(), delay);
+        }
+      });
+    }catch{
+      this.ws=null;
+      setTimeout(()=>this.connect(), RECONNECT_BASE*this.backoff);
+      this.backoff*=1.8;
+    }
+  }
+  disconnect(){ this._closing=true; this.ws?.close(); this.ws=null; }
+}
+
+let messages=[];
+function pushMessage(m){
+  messages.unshift(m);
+  if(messages.length>MAX_MESSAGES) messages.length=MAX_MESSAGES;
+}
+
+function render(){
+  chatDiv.innerHTML='';
+  for(const m of messages){
+    const line=document.createElement('div'); line.className='line';
+    const meta=document.createElement('div'); meta.className='meta';
+    const user=document.createElement('span'); user.className='user'; user.textContent=m.user;
+    const time=document.createElement('span'); time.className='time';
+    meta.appendChild(user); meta.appendChild(time);
+    const text=document.createElement('div'); text.className='text';
+
+    const parts=m.text.split(/(\s+)/);
+    for(const p of parts){
+      if(!p) continue;
+      const emote =
+        (ENABLE_BTTV && EmoteStore.bttv.map[p]) ||
+        (ENABLE_FFZ && EmoteStore.ffz.map[p]) ||
+        (ENABLE_7TV && EmoteStore.sev.map[p]);
+
+      if(emote){
+        const img=document.createElement('img');
+        img.className='emote'; img.src=emote; img.alt=p;
+        text.appendChild(img);
+      } else {
+        const span=document.createElement('span'); span.textContent=p;
+        text.appendChild(span);
+      }
+    }
+    line.appendChild(meta); line.appendChild(text);
+    chatDiv.appendChild(line);
+  }
+}
+
+(async function init(){
+  if(ENABLE_BTTV) loadEmotes('bttv', CHANNEL);
+  if(ENABLE_FFZ) loadEmotes('ffz', CHANNEL);
+  if(ENABLE_7TV) loadEmotes('sev', CHANNEL);
+
+  const irc = new LunaroIRC(CHANNEL);
+  irc.on('message',m=>pushMessage(m));
+  irc.connect();
+
+  setInterval(render, POLL_INTERVAL);
+})();
+</script>
+</body>
+</html>
