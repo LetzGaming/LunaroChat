@@ -1,0 +1,42 @@
+/* settings.css — modern UI for LunaroChat settings (no external fonts) */
+:root{
+  --bg:#0b0f14; --card:#0f1720; --muted:#9aa7b2; --accent:#67baff; --accent-2:#7ee0a8;
+  --glass: rgba(255,255,255,0.02);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;background:linear-gradient(180deg,#020307 0%, #071018 100%);color:#e6eef6}
+.container{max-width:1200px;margin:22px auto;padding:18px}
+.topbar{padding:14px 18px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));margin-bottom:12px}
+.title{font-size:20px;font-weight:700}
+.subtitle{font-size:13px;color:var(--muted);margin-top:6px}
+.layout{display:grid;grid-template-columns:220px 1fr 360px;gap:14px;align-items:start}
+.sidebar{background:var(--card);padding:12px;border-radius:10px;min-height:280px}
+.tab-btn{display:block;width:100%;padding:10px;border-radius:8px;background:transparent;border:none;color:#bed8f7;text-align:left;margin-bottom:8px;cursor:pointer}
+.tab-btn.active{background:linear-gradient(90deg, rgba(103,186,255,0.12), rgba(126,224,168,0.06));color:#fff}
+.fixed-info{margin-top:18px;color:var(--muted);font-size:13px}
+.content{background:var(--card);padding:16px;border-radius:10px;min-height:360px}
+.tab{display:none}
+.tab.active{display:block}
+label{display:block;margin-bottom:12px;font-size:13px}
+input[type=text], input[type=number], input[type=url], select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:inherit}
+input[type=range]{width:100%}
+.row{display:flex;gap:10px}
+.actions{margin-top:12px;display:flex;gap:8px}
+.primary{background:var(--accent);border:none;color:#021225;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer}
+.urlbox{margin-top:12px}
+.urlbox input{font-size:13px}
+.preview-area{margin-top:12px}
+.preview-stage{background:var(--glass);border-radius:10px;height:260px;padding:12px;overflow:auto;border:1px solid rgba(255,255,255,0.02)}
+.preview-stage .msg{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}
+.preview-stage .meta{display:flex;gap:8px;align-items:center;white-space:nowrap}
+.preview-stage .badge{height:28px}
+.preview-stage .user{font-weight:700}
+.preview-stage .text{background:rgba(0,0,0,0.25);padding:8px;border-radius:6px;color:inherit}
+.sidepanel{background:var(--card);padding:12px;border-radius:10px}
+.iframe-wrap{height:300px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);margin-bottom:12px}
+iframe#liveIframe{width:100%;height:100%;border:0;background:transparent}
+.presets{display:flex;gap:8px;flex-wrap:wrap}
+.preset{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 10px;border-radius:8px;color:var(--muted);cursor:pointer}
+.help{margin-top:12px;color:var(--muted);font-size:13px}
+.muted{color:var(--muted)}
