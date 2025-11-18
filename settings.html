@@ -18,15 +18,6 @@
       <button class="tab-btn active" data-tab="general">General</button>
       <button class="tab-btn" data-tab="style">Style</button>
       <button class="tab-btn" data-tab="advanced">Advanced</button>
-      <div class="fixed-info">
-        <h4>Fest aktiviert (fixed)</h4>
-        <ul>
-          <li>direction = <strong>up</strong> (unten → oben)</li>
-          <li>badges (Twitch) = <strong>on</strong></li>
-          <li>BTTV / FFZ / 7TV = <strong>on</strong></li>
-          <li>Nur Twitch Badges (keine custom badges)</li>
-        </ul>
-      </div>
     </nav>
 
     <section class="content">
@@ -113,7 +104,6 @@
       <!-- ADVANCED -->
       <form id="form-advanced" class="tab" data-tab="advanced" onsubmit="return false;">
         <h3>Advanced</h3>
-        <p class="muted">Die folgenden Features sind fest aktiviert und nicht schaltbar: direction, badges, BTTV, FFZ, 7TV.</p>
 
         <label>Custom Querystring (optional - only additional params, e.g. <code>&max=300</code>)</label>
         <input id="extraParams" placeholder="&utm=1" />
@@ -125,7 +115,6 @@
         <h4>Quick tips</h4>
         <ul>
           <li>OBS: Browser Source → URL = Generated URL</li>
-          <li>Empfohlen: "Shutdown source when not visible" = ON</li>
           <li>FontSize kann im Overlay per <code>?fontSize=</code> überschrieben werden</li>
         </ul>
       </form>
@@ -142,11 +131,6 @@
         <button data-preset="stream" class="preset">Streaming (16px)</button>
         <button data-preset="large" class="preset">Large (18px)</button>
         <button data-preset="compact" class="preset">Compact (14px)</button>
-      </div>
-
-      <div class="help">
-        <h5>Notes</h5>
-        <p class="muted">Direction = <strong>up</strong> (fixed). Badges & Emotes always ON.</p>
       </div>
     </aside>
   </section>
