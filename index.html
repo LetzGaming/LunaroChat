@@ -1,195 +1,271 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>LunaroChat Overlay</title>
-<meta name="description" content="LunaroChat – Ultra-stabiles Twitch-Overlay ohne Memory-Leaks.">
+<meta name="description" content="LunaroChat – ultra-stabiles, anonymes Twitch Chat Overlay (fontSize/fontFamily/fontWeight supported)"/>
 <style>
   :root{
-    --bg: rgba(0,0,0,0);
-    --text:#fff;
-    --user:#9ad;
-    --time:#999;
-    --msg-bg: rgba(0,0,0,0.35);
+    --bg: transparent;
+    --text: #fff;
+    --user: #9ad;
+    --time: #999;
+    --msg-bg: rgba(0,0,0,0.28);
     --font: "Segoe UI", Roboto, Arial, sans-serif;
+    --font-weight: 400;
   }
-  body{margin:0;background:transparent;font-family:var(--font);-webkit-font-smoothing:antialiased}
-  #chat{padding:6px; display:flex; flex-direction:column-reverse; gap:6px; max-height:100vh; overflow:hidden}
-  .line{display:flex; gap:8px; align-items:flex-start; max-width:100%}
-  .meta{display:flex; gap:8px; align-items:center; white-space:nowrap}
-  .user{font-weight:700;color:var(--user); font-size:1em}
-  .time{color:var(--time); font-size:0.85em}
-  .text{background:var(--msg-bg); padding:6px 8px; border-radius:6px; display:inline-block; line-height:1.25; color:var(--text); word-break:break-word; max-width:86vw}
-  img.emote{height:1.2em; vertical-align:middle; display:inline-block}
-
-  :root[data-theme="light"]{
-    --text:#111;
-    --user:#035;
-    --time:#666;
-    --msg-bg: rgba(255,255,255,0.9);
-  }
+  html,body{height:100%;margin:0;background:transparent; -webkit-font-smoothing:antialiased;}
+  body{font-family:var(--font); font-weight:var(--font-weight);}
+  #chat{padding:6px; display:flex; flex-direction:column-reverse; gap:6px; max-height:100vh; overflow:hidden;}
+  .line{display:flex; gap:8px; align-items:flex-start; max-width:100%;}
+  .meta{display:flex; gap:8px; align-items:center; white-space:nowrap;}
+  .user{font-weight:700; color:var(--user); font-size:1em;}
+  .time{color:var(--time); font-size:0.85em;}
+  .text{background:var(--msg-bg); padding:6px 8px; border-radius:6px; display:inline-block; line-height:1.25; color:var(--text); word-break:break-word; max-width:86vw;}
+  img.emote{height:1.2em; vertical-align:middle; display:inline-block;}
+  img.badge{height:36px; vertical-align:middle; display:inline-block;}
+  :root[data-theme="light"]{ --text:#111; --user:#035; --time:#666; --msg-bg: rgba(255,255,255,0.9); }
 </style>
 </head>
 <body>
 <div id="chat" aria-live="polite" role="log"></div>
 
 <script>
-// Branding
-console.log("%cLunaroChat Overlay loaded", "color:#67baff; font-size:16px;");
+/*
+  LunaroChat client (anonymous-only)
+  - direction = up (bottom -> top) default
+  - badges always on (Twitch native)
+  - BTTV / FFZ / 7TV always on
+  - fontSize default 16, override with ?fontSize=
+  - fontFamily supported via ?fontFamily=<font-family>
+  - fontWeight supported via ?fontWeight=<400|500|700>
+  - channel required: ?channel=yourchannel
+*/
 
-// Params
 const params = (new URL(location.href)).searchParams;
-const CHANNEL = (params.get('channel') || 'logo').toLowerCase();
-const FONT_SIZE = parseInt(params.get('fontSize')||14,10);
-const THEME = (params.get('theme')||'dark').toLowerCase();
-const ENABLE_BTTV = params.get('bttv')!=='0' && params.get('bttv')!=='false';
-const ENABLE_FFZ = params.get('ffz')!=='0' && params.get('ffz')!=='false';
-const ENABLE_7TV = params.get('sev')!=='0' && params.get('sev')!=='false';
-const MAX_MESSAGES = Math.max(50, Math.min(1000, parseInt(params.get('max')||200,10)));
-const POLL_INTERVAL = 200;
-const RECONNECT_BASE = 2000;
-const DEBUG = false;
+const CHANNEL = (params.get('channel') || '').toLowerCase();
+if(!CHANNEL){
+  document.body.innerHTML = '<div style="color:#ff5555;padding:12px;font-family:Arial">LunaroChat: Missing URL parameter <strong>?channel=yourchannel</strong></div>';
+  throw new Error('channel parameter required');
+}
 
-document.documentElement.setAttribute('data-theme', THEME === 'light' ? 'light':'dark');
-document.getElementById('chat').style.fontSize = FONT_SIZE + 'px';
+// default values
+const DEFAULT_FONT = 16;
+const DEFAULT_FONT_FAMILY = '"Segoe UI", Roboto, Arial, sans-serif';
+const DEFAULT_FONT_WEIGHT = '400';
+
+function safeDecode(s){
+  if(!s) return s;
+  try {
+    let d = decodeURIComponent(s);
+    if(d && /%25/.test(s)) {
+      try { d = decodeURIComponent(d); } catch(e) {}
+    }
+    return d;
+  } catch(e) {
+    return s;
+  }
+}
+
+// parse font params robustly
+let fontSize = Math.max(10, parseInt(params.get('fontSize') || DEFAULT_FONT, 10));
+if(Number.isNaN(fontSize)) fontSize = DEFAULT_FONT;
+
+let fontFamilyParam = params.get('fontFamily') || '';
+fontFamilyParam = safeDecode(fontFamilyParam) || DEFAULT_FONT_FAMILY;
+fontFamilyParam = fontFamilyParam.trim();
+if((fontFamilyParam.startsWith('"') && fontFamilyParam.endsWith('"')) ||
+   (fontFamilyParam.startsWith("'") && fontFamilyParam.endsWith("'"))){
+  fontFamilyParam = fontFamilyParam.slice(1,-1);
+}
+const needsWrap = /\s/.test(fontFamilyParam) && !/["']/.test(fontFamilyParam);
+const appliedFontFamily = needsWrap ? `"${fontFamilyParam}", ${DEFAULT_FONT_FAMILY}` : `${fontFamilyParam}, ${DEFAULT_FONT_FAMILY}`;
+
+let fontWeightParam = params.get('fontWeight') || DEFAULT_FONT_WEIGHT;
+if(!/^\d{3}$/.test(fontWeightParam)) fontWeightParam = DEFAULT_FONT_WEIGHT;
+
+document.documentElement.style.setProperty('--font', appliedFontFamily);
+document.documentElement.style.setProperty('--font-weight', fontWeightParam);
+
 const chatDiv = document.getElementById('chat');
+chatDiv.style.fontSize = fontSize + 'px';
 
-// Emote storage
-const EmoteStore = { bttv:{map:{}}, ffz:{map:{}}, sev:{map:{}} };
-function log(){ if(DEBUG) console.log.apply(console, arguments); }
+// fixed flags (always enabled)
+const ENABLE_BADGES = true;
+const ENABLE_BTTV = true;
+const ENABLE_FFZ = true;
+const ENABLE_7TV = true;
 
-async function safeFetch(url, opts={}, timeout=8000){
-  const controller = new AbortController();
-  const id = setTimeout(()=>controller.abort(), timeout);
-  try{
-    const r = await fetch(url, {...opts, signal: controller.signal});
-    clearTimeout(id);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return await r.json();
-  }catch{
-    clearTimeout(id);
-    return null;
-  }
+// Emote store (filled from /api/emotes)
+const EmoteStore = { bttv: { map:{} }, ffz: { map:{} }, sev: { map:{} } };
+async function loadEmotesViaProxy(provider, channelName){
+  try {
+    const url = '/api/emotes?provider=' + encodeURIComponent(provider) + '&channel=' + encodeURIComponent(channelName);
+    const r = await fetch(url, { cache: 'no-cache' });
+    if(!r.ok) return;
+    const j = await r.json();
+    if(!j || !j.map) return;
+    for(const k in j.map) EmoteStore[provider].map[k] = j.map[k];
+  } catch(e){}
 }
 
-async function loadEmotes(provider, channel){
-  const url = '/api/emotes?provider=' + encodeURIComponent(provider) +
-              '&channel=' + encodeURIComponent(channel);
-  const data = await safeFetch(url, {}, 12000);
-  if(!data) return;
-  for(const k in data.map) EmoteStore[provider].map[k] = data.map[k];
-  log('LunaroChat ['+provider+'] loaded', Object.keys(data.map).length);
+// Badge store + loader (anonymous)
+const BadgeStore = { global: {}, channel: {} };
+async function fetchBadgesAnonymous(){
+  try {
+    const r = await fetch('/api/badges?channel=' + encodeURIComponent(CHANNEL), { cache: 'no-cache' });
+    if(!r.ok) return;
+    const j = await r.json();
+    if(j.global) BadgeStore.global = j.global;
+    if(j.channel) BadgeStore.channel = j.channel;
+  } catch(e){}
 }
 
-// IRC client
-class LunaroIRC {
+function parseBadgeTag(badgesTag){
+  if(!badgesTag) return [];
+  return badgesTag.split(',').map(s=>{
+    const [set,ver] = s.split('/');
+    return { set, ver };
+  }).filter(x=>x && x.set);
+}
+function resolveBadgeImage(set, ver){
+  try {
+    if(BadgeStore.channel && BadgeStore.channel[set] && BadgeStore.channel[set][ver]) return BadgeStore.channel[set][ver];
+    if(BadgeStore.global && BadgeStore.global[set] && BadgeStore.global[set][ver]) return BadgeStore.global[set][ver];
+  } catch(e){}
+  return null;
+}
+
+// TinyIRC (anonymous)
+class TinyIRC {
   constructor(channel){
-    this.channel = channel.startsWith('#')?channel:'#'+channel;
+    this.channel = channel.startsWith('#')? channel : '#'+channel;
     this.ws = null;
-    this._closing = false;
     this.backoff = 1;
-    this.listeners = {message:[],connected:[],disconnected:[]};
+    this.listeners = { message: [], connected: [], disconnected: [] };
+    this._closing = false;
   }
-  on(evt,fn){ this.listeners[evt].push(fn); }
-  emit(evt,...args){ this.listeners[evt].forEach(f=>{ try{f(...args);}catch{} }); }
-
+  on(evt, fn){ if(this.listeners[evt]) this.listeners[evt].push(fn); }
+  emit(evt, ...args){ for(const f of this.listeners[evt]) try{ f(...args); } catch(e){} }
   connect(){
     if(this.ws) return;
-    try{
+    try {
+      this._closing = false;
       this.ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
-      this.ws.addEventListener('open',()=>{
-        this.ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+      this.ws.addEventListener('open', ()=> {
+        this.backoff = 1;
+        this.ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
         this.ws.send('NICK justinfan' + (Math.random()*99999|0));
         this.ws.send('JOIN ' + this.channel);
         this.emit('connected');
       });
-      this.ws.addEventListener('message',(ev)=>{
+      this.ws.addEventListener('message', (ev)=> {
         const raw = ev.data;
         if(raw.startsWith('PING')) return this.ws.send('PONG :tmi.twitch.tv');
         const parts = raw.split(' ');
-        if(parts.indexOf('PRIVMSG')>-1){
-          const tagsPart = raw.startsWith('@') ? raw.split(' ')[0] : '';
+        if(parts.indexOf('PRIVMSG') > -1){
+          let tagsPart = raw.startsWith('@') ? raw.split(' ')[0] : '';
           const tags = {};
           if(tagsPart){
             for(const t of tagsPart.substring(1).split(';')){
               const [k,v] = t.split('=');
-              tags[k]=v;
+              tags[k] = v;
             }
-            const nick = raw.split('!')[0].replace(/^@/,'').replace(':','');
-            const msgIndex = raw.indexOf(' PRIVMSG ');
-            const text = raw.substring(raw.indexOf(' :', msgIndex)+2);
-            const user = tags['display-name']||nick;
-            this.emit('message',{user,text,color:tags.color||'#ffffff'});
           }
+          const nick = raw.split('!')[0].replace(/^@/,'').replace(':','');
+          const msgIndex = raw.indexOf(' PRIVMSG ');
+          const text = raw.substring(raw.indexOf(' :', msgIndex) + 2);
+          const user = (tags['display-name'] || nick) || 'unknown';
+          const color = tags['color'] || '';
+          const badges = tags['badges'] || '';
+          this.emit('message', { user, text, color, badges });
         }
       });
-      this.ws.addEventListener('close',()=>{
-        this.ws=null;
+      this.ws.addEventListener('close', ()=> {
+        this.ws = null;
         this.emit('disconnected');
         if(!this._closing){
-          const delay = Math.min(60000, RECONNECT_BASE*this.backoff);
-          this.backoff*=1.8;
+          const delay = Math.min(60000, 2000 * this.backoff);
+          this.backoff *= 1.8;
           setTimeout(()=>this.connect(), delay);
         }
       });
-    }catch{
-      this.ws=null;
-      setTimeout(()=>this.connect(), RECONNECT_BASE*this.backoff);
-      this.backoff*=1.8;
+      this.ws.addEventListener('error', (e)=> {});
+    } catch(e){
+      this.ws = null;
+      setTimeout(()=>this.connect(), 2000 * this.backoff);
+      this.backoff *= 1.8;
     }
   }
-  disconnect(){ this._closing=true; this.ws?.close(); this.ws=null; }
+  disconnect(){ this._closing = true; try{ this.ws?.close(); }catch{} this.ws = null; }
 }
 
-let messages=[];
+// message queue + render (memory-safe)
+let messages = [];
+const MAX_MESSAGES = Math.max(50, Math.min(1000, parseInt((new URL(location.href)).searchParams.get('max') || 200, 10)));
 function pushMessage(m){
   messages.unshift(m);
-  if(messages.length>MAX_MESSAGES) messages.length=MAX_MESSAGES;
+  if(messages.length > MAX_MESSAGES) messages.length = MAX_MESSAGES;
 }
+function renderOnce(){
+  chatDiv.innerHTML = '';
+  for(let i=0;i<messages.length;i++){
+    const m = messages[i];
+    const line = document.createElement('div'); line.className = 'line';
+    const meta = document.createElement('div'); meta.className = 'meta';
+    if(ENABLE_BADGES){
+      const badgeWrap = document.createElement('div'); badgeWrap.style.display='flex'; badgeWrap.style.gap='4px'; badgeWrap.style.alignItems='center';
+      const parsed = parseBadgeTag(m.badges);
+      for(const b of parsed){
+        const url = resolveBadgeImage(b.set, b.ver);
+        if(url){
+          const img = document.createElement('img'); img.className='badge'; img.src = url; img.alt = b.set;
+          badgeWrap.appendChild(img);
+        }
+      }
+      meta.appendChild(badgeWrap);
+    }
+    const userEl = document.createElement('span'); userEl.className = 'user'; userEl.textContent = m.user;
+    try { if(m.color) userEl.style.color = m.color; } catch(e){}
+    const timeEl = document.createElement('span'); timeEl.className = 'time';
+    meta.appendChild(userEl); meta.appendChild(timeEl);
 
-function render(){
-  chatDiv.innerHTML='';
-  for(const m of messages){
-    const line=document.createElement('div'); line.className='line';
-    const meta=document.createElement('div'); meta.className='meta';
-    const user=document.createElement('span'); user.className='user'; user.textContent=m.user;
-    const time=document.createElement('span'); time.className='time';
-    meta.appendChild(user); meta.appendChild(time);
-    const text=document.createElement('div'); text.className='text';
-
-    const parts=m.text.split(/(\s+)/);
+    const text = document.createElement('div'); text.className = 'text';
+    const parts = m.text.split(/(\s+)/);
     for(const p of parts){
       if(!p) continue;
-      const emote =
-        (ENABLE_BTTV && EmoteStore.bttv.map[p]) ||
-        (ENABLE_FFZ && EmoteStore.ffz.map[p]) ||
-        (ENABLE_7TV && EmoteStore.sev.map[p]);
-
-      if(emote){
-        const img=document.createElement('img');
-        img.className='emote'; img.src=emote; img.alt=p;
-        text.appendChild(img);
+      let emoteUrl = null;
+      if(ENABLE_BTTV && EmoteStore.bttv.map[p]) emoteUrl = EmoteStore.bttv.map[p];
+      if(!emoteUrl && ENABLE_FFZ && EmoteStore.ffz.map[p]) emoteUrl = EmoteStore.ffz.map[p];
+      if(!emoteUrl && ENABLE_7TV && EmoteStore.sev.map[p]) emoteUrl = EmoteStore.sev.map[p];
+      if(emoteUrl){
+        const im = document.createElement('img'); im.className = 'emote'; im.src = emoteUrl; im.alt = p; im.style.height = '1.2em';
+        text.appendChild(im);
       } else {
-        const span=document.createElement('span'); span.textContent=p;
+        const span = document.createElement('span'); span.textContent = p;
         text.appendChild(span);
       }
     }
-    line.appendChild(meta); line.appendChild(text);
+
+    line.appendChild(meta);
+    line.appendChild(text);
     chatDiv.appendChild(line);
   }
 }
 
+// init loader
 (async function init(){
-  if(ENABLE_BTTV) loadEmotes('bttv', CHANNEL);
-  if(ENABLE_FFZ) loadEmotes('ffz', CHANNEL);
-  if(ENABLE_7TV) loadEmotes('sev', CHANNEL);
+  await fetchBadgesAnonymous();
+  if(ENABLE_BTTV) loadEmotesViaProxy('bttv', CHANNEL);
+  if(ENABLE_FFZ) loadEmotesViaProxy('ffz', CHANNEL);
+  if(ENABLE_7TV) loadEmotesViaProxy('sev', CHANNEL);
 
-  const irc = new LunaroIRC(CHANNEL);
-  irc.on('message',m=>pushMessage(m));
+  const irc = new TinyIRC(CHANNEL);
+  irc.on('message', (m)=> pushMessage(m));
   irc.connect();
 
-  setInterval(render, POLL_INTERVAL);
+  setInterval(renderOnce, 200);
 })();
 </script>
 </body>
