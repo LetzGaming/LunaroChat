@@ -32,17 +32,6 @@
 <div id="chat" aria-live="polite" role="log"></div>
 
 <script>
-/*
-  LunaroChat client (anonymous-only)
-  - direction = up (bottom -> top) default
-  - badges always on (Twitch native)
-  - BTTV / FFZ / 7TV always on
-  - fontSize default 16, override with ?fontSize=
-  - fontFamily supported via ?fontFamily=<font-family>
-  - fontWeight supported via ?fontWeight=<400|500|700>
-  - channel required: ?channel=yourchannel
-*/
-
 const params = (new URL(location.href)).searchParams;
 const CHANNEL = (params.get('channel') || '').toLowerCase();
 if(!CHANNEL){
