@@ -194,7 +194,7 @@ class TinyIRC {
 let messages = [];
 const MAX_MESSAGES = Math.max(50, Math.min(1000, parseInt((new URL(location.href)).searchParams.get('max') || 200, 10)));
 function pushMessage(m){
-  messages.unshift(m);
+  messages.push(m);
   if(messages.length > MAX_MESSAGES) messages.length = MAX_MESSAGES;
 }
 function renderOnce(){
