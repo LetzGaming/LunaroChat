@@ -1,1 +1,141 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>LunaroChat — Settings</title>
+<link rel="stylesheet" href="./settings.css" />
+</head>
+<body>
+<main class="container">
+  <header class="topbar">
+    <div class="title">LunaroChat — Einstellungen</div>
+    <div class="subtitle">Erzeuge deine Overlay-URL — Preview & Copy in Sekunden</div>
+  </header>
 
+  <section class="layout">
+    <nav class="sidebar">
+      <button class="tab-btn active" data-tab="general">General</button>
+      <button class="tab-btn" data-tab="style">Style</button>
+      <button class="tab-btn" data-tab="advanced">Advanced</button>
+    </nav>
+
+    <section class="content">
+      <!-- GENERAL -->
+      <form id="form-general" class="tab active" data-tab="general" onsubmit="return false;">
+        <h3>General</h3>
+        <label>Channel (required)
+          <input id="channel" type="text" placeholder="z. B. logo" />
+        </label>
+
+        <label>Font Family
+          <select id="fontFamily">
+            <option value="Segoe UI, Roboto, Arial, sans-serif">Segoe UI (default)</option>
+            <option value="Roboto, Arial, sans-serif">Roboto</option>
+            <option value="Inter, system-ui, sans-serif">Inter</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Source Sans Pro, sans-serif">Source Sans Pro</option>
+          </select>
+        </label>
+
+        <label>Font Size (<span id="fontSizeLabel">16</span>px)
+          <input id="fontSize" type="range" min="10" max="30" value="16" />
+        </label>
+
+        <label>Font Weight
+          <select id="fontWeight">
+            <option value="400">Normal</option>
+            <option value="500">Medium</option>
+            <option value="700">Bold</option>
+          </select>
+        </label>
+
+        <div class="row">
+          <label>Max Messages
+            <input id="maxMessages" type="number" min="50" max="1000" step="10" value="200" />
+          </label>
+          <label>Padding (px)
+            <input id="padding" type="number" min="0" max="40" value="6" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="btn-generate" class="primary">Generate URL</button>
+          <button id="btn-copy" class="secondary">Copy URL</button>
+          <button id="btn-open" class="secondary">Open Overlay</button>
+        </div>
+
+        <div class="urlbox">
+          <label>Generated Overlay URL</label>
+          <input id="overlayUrl" readonly />
+        </div>
+      </form>
+
+      <!-- STYLE -->
+      <form id="form-style" class="tab" data-tab="style" onsubmit="return false;">
+        <h3>Style & Preview</h3>
+
+        <label>Theme
+          <select id="theme">
+            <option value="dark">Dark (default)</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+
+        <label>Chat width (px)
+          <input id="chatWidth" type="range" min="200" max="1600" value="800" />
+        </label>
+
+        <label>Message border radius (px)
+          <input id="borderRadius" type="range" min="0" max="20" value="6" />
+        </label>
+
+        <div class="preview-controls">
+          <button id="btn-inject" class="secondary">Send test messages to Preview</button>
+          <button id="btn-reset" class="secondary">Reset to defaults</button>
+        </div>
+
+        <div class="preview-area">
+          <div class="preview-stage" id="previewStage">
+          </div>
+        </div>
+      </form>
+
+      <!-- ADVANCED -->
+      <form id="form-advanced" class="tab" data-tab="advanced" onsubmit="return false;">
+        <h3>Advanced</h3>
+
+        <label>Custom Querystring (optional - only additional params, e.g. <code>&max=300</code>)</label>
+        <input id="extraParams" placeholder="&utm=1" />
+
+        <div class="actions">
+          <button id="btn-generate-adv" class="primary">Generate URL</button>
+        </div>
+
+        <h4>Quick tips</h4>
+        <ul>
+          <li>OBS: Browser Source → URL = Generated URL</li>
+          <li>FontSize kann im Overlay per <code>?fontSize=</code> überschrieben werden</li>
+        </ul>
+      </form>
+    </section>
+
+    <aside class="sidepanel">
+      <h4>Live Iframe Preview</h4>
+      <div class="iframe-wrap">
+        <iframe id="liveIframe" src="/" sandbox="allow-same-origin allow-scripts" title="LunaroChat live preview"></iframe>
+      </div>
+
+      <h4>Quick Presets</h4>
+      <div class="presets">
+        <button data-preset="stream" class="preset">Streaming (16px)</button>
+        <button data-preset="large" class="preset">Large (18px)</button>
+        <button data-preset="compact" class="preset">Compact (14px)</button>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script src="./settings.js"></script>
+</body>
+</html>
